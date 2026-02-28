@@ -1,0 +1,5 @@
+ensubject.pdf
+.env
+*.tfstate
+.terraform/
+*.tfvars
