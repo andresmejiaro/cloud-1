@@ -1,5 +1,11 @@
-ensubject.pdf
+en.subject.pdf
 .env
 *.tfstate
 .terraform/
 *.tfvars
+*.tfstate.*
+crash.log
+override.tf.*
+*.pem
+*.key
+*.ptx
