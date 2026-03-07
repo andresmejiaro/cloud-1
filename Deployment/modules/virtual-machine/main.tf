@@ -1,16 +1,16 @@
-resource "azurerm_linux_virtual_machine" "example" {
-  name                = var.name
-  resource_group_name = var.resource_group
+resource "azurerm_linux_virtual_machine" "this" {
+  name                = "example-machine"
+  resource_group_name = var.resource_group_name
   location            = var.location
   size                = "Standard_B2als_v2"
   admin_username      = "adminuser"
   network_interface_ids = [
-    azurerm_network_interface.example.id,
+    var.interface_id,
   ]
 
   admin_ssh_key {
     username   = "adminuser"
-    public_key = file("~/.ssh/id_rsa_dragon.pub") #createnewkey in cluster
+    public_key = file("~/.ssh/id_rsa.pub")
   }
 
   os_disk {
