@@ -18,8 +18,6 @@ packages:
   - openssl
 
 runcmd:
-  - growpart /dev/sda 1
-  - resize2fs /dev/sda1
   - |
     timeout 300 sh -c 'until ping -c 1 github.com; do sleep 2; done'
     git clone https://github.com/Tagamydev/cloud-1 /opt/repo
