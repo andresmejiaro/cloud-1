@@ -2,6 +2,7 @@ resource "azurerm_linux_virtual_machine" "this" {
   name                = "example-machine"
   resource_group_name = var.resource_group_name
   location            = var.location
+  custom_data         = base64encode(templatefile("${path.root}/user-data",{env = var.env})) 
   size                = "Standard_B2als_v2"
   admin_username      = "adminuser"
   network_interface_ids = [

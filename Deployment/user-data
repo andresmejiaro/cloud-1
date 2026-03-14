@@ -8,29 +8,10 @@ packages:
 runcmd:
   - growpart /dev/sda 1
   - resize2fs /dev/sda1
-  - echo "[$(date)] cloud-init runcmd started" >> /log.txt
+  - echo ${env} | base64 -d  > /.env
   - |
-    echo "[$(date)] Waiting for network connectivity to github.com..." >> /log.txt
-    if timeout 300 sh -c 'until ping -c 1 github.com; do sleep 2; done'; then
-      echo "[$(date)] Network OK. Cloning repository..." >> /log.txt
-      if git clone https://github.com/Tagamydev/cloud-1 /opt/repo >> /log.txt 2>&1; then
-        echo "[$(date)] Git clone succeeded." >> /log.txt
-        if [ -f /opt/repo/docker/setup.sh ]; then
-          echo "[$(date)] Found setup.sh. Contents below:" >> /log.txt
-          cat /opt/repo/docker/setup.sh >> /log.txt
-          echo "[$(date)] Running setup.sh..." >> /log.txt
-          bash /opt/repo/docker/setup.sh >> /log.txt 2>&1
-          echo "[$(date)] setup.sh exited with code $?" >> /log.txt
-        else
-          echo "[$(date)] ERROR: setup.sh not found after clone." >> /log.txt
-        fi
-      else
-        echo "[$(date)] ERROR: git clone failed. Check network or repo URL." >> /log.txt
-      fi
-    else
-      echo "[$(date)] ERROR: Timed out waiting for github.com to be reachable." >> /log.txt
-    fi
-  - echo "[$(date)] cloud-init runcmd finished" >> /log.txt
+    timeout 300 sh -c 'until ping -c 1 github.com; do sleep 2; done'
+    git clone https://github.com/andresmejiaro/cloud-1 /opt/repo
     if [ -f /opt/repo/docker/setup.sh ]; then
       bash /opt/repo/docker/setup.sh
     else
