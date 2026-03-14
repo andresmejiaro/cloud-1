@@ -18,11 +18,13 @@ packages:
   - openssl
 
 runcmd:
+  - growpart /dev/sda 1
+  - resize2fs /dev/sda1
   - |
     timeout 300 sh -c 'until ping -c 1 github.com; do sleep 2; done'
-    git clone https://github.com/Tagamydev/cloud-1.git /opt/repo
+    git clone https://github.com/Tagamydev/cloud-1 /opt/repo
     if [ -f /opt/repo/docker/setup.sh ]; then
-      bash /opt/repo/docker/setup.sh > /log.txt
+      bash /opt/repo/docker/setup.sh
     else
       echo "Error: setup.sh not found after clone" >&2
     fi
