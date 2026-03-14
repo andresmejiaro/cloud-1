@@ -10,3 +10,7 @@ variable "resource_group_name" {
 variable "location" {
     type = string
 }
+
+variable "env" {
+  type = string
+}
