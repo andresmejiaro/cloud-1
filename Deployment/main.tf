@@ -38,3 +38,17 @@ module "virtual_machine" {
     resource_group_name = module.resource_group.name
     interface_id = module.network_interface.id
 }
+
+module "NSG" {
+    source = "./modules/NSG"
+    location =  var.location
+    resource_group_name = module.resource_group.name
+  
+}
+
+module "NSG_Asociation" {
+    source = "./modules/NSG_Asociation"
+    network_interface_id = module.network_interface.id
+    network_security_group_id = module.NSG.id
+  
+}
