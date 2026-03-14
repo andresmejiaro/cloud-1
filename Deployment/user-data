@@ -1,22 +1,10 @@
 #cloud-config
-#users:
-#  - name: testuser
-#    groups: sudo, docker
-#    shell: /bin/bash
-#    sudo: ['ALL=(ALL) NOPASSWD:ALL']
-#    lock_passwd: true
-#    ssh_authorized_keys:
-#      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJkN9vwmUwz33vknCy+85W/ETQX1S0bQfbXvq5VVz4h/ smsanchez1@typsa.es
-#      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFv4iQR4oxRri5uPFF4L19YSvHSimko2emA39pabZGLj samu2004ssmm@gmail.com
-
-
 packages:
   - git
   - docker.io
   - docker-compose
   - ufw
   - openssl
-
 runcmd:
   - growpart /dev/sda 1
   - resize2fs /dev/sda1
