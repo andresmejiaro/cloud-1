@@ -1,4 +1,4 @@
-en.subject.pdf
+*.pdf
 .env
 *.tfstate
 .terraform/
