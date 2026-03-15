@@ -63,11 +63,11 @@ fi
 # ── Import seed dump via mysql binary (bypasses SSL issue) ────────────────────
 if [ -f "$SEED_FILE" ]; then
   echo "[wp-setup] Importing seed database from $SEED_FILE..."
-  mysql \
+mysql \
     --host="${WORDPRESS_DB_HOST}" \
     --user="${WORDPRESS_DB_USER}" \
     --password="${WORDPRESS_DB_PASSWORD}" \
-    --ssl-mode=DISABLED \
+    --skip-ssl \
     "${WORDPRESS_DB_NAME}" < "$SEED_FILE"
   echo "[wp-setup] Seed import done."
 else
@@ -109,4 +109,4 @@ wp cache flush --allow-root
 wp rewrite flush --allow-root
 
 touch "$FLAG_FILE"
-echo "[wp-setup] ✅ Done. Site live at ${WP_URL}"
+echo "[wp-setup] Done. Site live at ${WP_URL}"
