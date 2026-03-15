@@ -7,11 +7,6 @@ set -euo pipefail
 # Usage: sudo bash setup.sh
 # ─────────────────────────────────────────────
 
-
-base64 -d "$env"> .env
-set -a; source .env; set +a
-
-
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
 # ── 0. Must run as root ──────────────────────

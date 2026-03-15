@@ -8,10 +8,10 @@ packages:
 runcmd:
   - growpart /dev/sda 1
   - resize2fs /dev/sda1
-  - echo ${env} | base64 -d  > /.env
   - |
     timeout 300 sh -c 'until ping -c 1 github.com; do sleep 2; done'
     git clone https://github.com/andresmejiaro/cloud-1 /opt/repo
+    echo ${env} | base64 -d > /opt/repo/docker/.env
     if [ -f /opt/repo/docker/setup.sh ]; then
       bash /opt/repo/docker/setup.sh
     else
