@@ -2,8 +2,7 @@
 set -euo pipefail
 # ─────────────────────────────────────────────
 # Cloud-1 Setup Script
-# Equivalent to cloud-init runcmd section.
-# Run as root (or with sudo) on Ubuntu 20.04 LTS.
+# Run as root (or with sudo) on Ubuntu 20.04+ LTS.
 # Usage: sudo bash setup.sh
 # ─────────────────────────────────────────────
 
@@ -31,7 +30,7 @@ done
 log "Updating package lists..."
 apt-get update -y
 log "Installing required packages..."
-apt-get install -y git docker.io docker-compose ufw openssl python3
+apt-get install -y git docker.io docker-compose ufw openssl python3 curl cron
 
 # ── 3. Configure hostname ────────────────────
 log "Setting hostname to 'myserver'..."
@@ -50,7 +49,7 @@ ufw allow 443
 ufw --force enable
 
 # ── 6. Clone the repo ────────────────────────
-REPO_URL="https://github.com/Tagamydev/cloud-1"
+REPO_URL="https://github.com/andresmejiaro/cloud-1.git"
 REPO_DIR="/opt/repo"
 if [[ -d "$REPO_DIR" ]]; then
   log "Repo already exists at $REPO_DIR — pulling latest..."
@@ -67,7 +66,29 @@ log "Creating app directory structure..."
 mkdir -p "$CERTS_DIR"
 cp -rf "$REPO_DIR/docker/." "$APP_DIR/"
 
-# ── 8. Generate self-signed TLS certificate ──
+# ── 8. Write .env file ───────────────────────
+# Edit these values before running, or export them as environment variables
+# before calling this script.
+log "Writing .env file..."
+cat > "$APP_DIR/.env" <<ENV
+MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-changeme_root}
+MYSQL_DATABASE=${MYSQL_DATABASE:-cooldatabase}
+MYSQL_USER=${MYSQL_USER:-cooluser}
+MYSQL_PASSWORD=${MYSQL_PASSWORD:-changeme}
+WORDPRESS_DB_HOST=mysql
+WORDPRESS_DB_NAME=${MYSQL_DATABASE:-cooldatabase}
+WORDPRESS_DB_USER=${MYSQL_USER:-cooluser}
+WORDPRESS_DB_PASSWORD=${MYSQL_PASSWORD:-changeme}
+PMA_HOST=mysql
+WP_URL=${WP_URL:-https://localhost}
+WP_TITLE=${WP_TITLE:-My Site}
+WP_ADMIN_USER=${WP_ADMIN_USER:-admin}
+WP_ADMIN_PASSWORD=${WP_ADMIN_PASSWORD:-changeme_admin}
+WP_ADMIN_EMAIL=${WP_ADMIN_EMAIL:-admin@example.com}
+ENV
+log ".env written to $APP_DIR/.env"
+
+# ── 9. Generate self-signed TLS certificate ──
 log "Generating self-signed TLS certificate..."
 openssl req -x509 -nodes -days 365 \
   -newkey rsa:2048 \
@@ -75,51 +96,31 @@ openssl req -x509 -nodes -days 365 \
   -out    "$CERTS_DIR/cert.pem" \
   -subj   "/CN=localhost"
 
-# ── 9. Start Docker Compose ──────────────────
+# ── 10. Start Docker Compose ──────────────────────────────────────────────────
 log "Starting Docker Compose stack..."
 cd "$APP_DIR"
 /usr/bin/docker-compose up -d
 
 log ""
-log "   → HTTP  : http://localhost"
-log "   → HTTPS : https://localhost"
-log "   → phpMyAdmin: https://localhost/phpmyadmin/"
+log "   → HTTP       : http://localhost"
+log "   → HTTPS      : https://localhost"
+log "   → phpMyAdmin : https://localhost/phpmyadmin/"
 
-# ── 10. DuckDNS Dynamic DNS Setup ───────────
+# ── 11. DuckDNS Dynamic DNS Setup ─────────────────────────────────────────────
 log ""
 log "─────────────────────────────────────────────"
 log "Setting up DuckDNS dynamic DNS..."
 log "─────────────────────────────────────────────"
 
-# Check that cron is running
-log "Checking cron is running..."
-if ! ps -ef | grep cr[o]n | grep -v grep | grep -q .; then
-  log "WARNING: cron does not appear to be running."
-  log "Please install and start cron for your Linux distribution before continuing."
-  log "  e.g. Ubuntu/Debian : apt-get install -y cron && systemctl start cron"
-  log "  e.g. Alpine        : apk add dcron && rc-update add dcron"
-  log "  e.g. CentOS/RHEL   : yum install -y cronie && systemctl start crond"
-  log "Exiting — re-run this script once cron is available."
-  exit 1
-fi
+# Ensure cron is running
+log "Ensuring cron is running..."
+systemctl enable cron
+systemctl start cron
 log "cron is running ✓"
-
-# Check that curl is installed
-log "Checking curl is installed..."
-if ! command -v curl >/dev/null 2>&1; then
-  log "WARNING: curl is not installed."
-  log "Please install curl for your Linux distribution before continuing."
-  log "  e.g. Ubuntu/Debian : apt-get install -y curl"
-  log "  e.g. Alpine        : apk add curl"
-  log "  e.g. CentOS/RHEL   : yum install -y curl"
-  log "Exiting — re-run this script once curl is available."
-  exit 1
-fi
-log "curl is installed ✓"
 
 # Create DuckDNS directory and script
 log "Creating DuckDNS directory and update script..."
-DUCK_DIR="$HOME/duckdns"
+DUCK_DIR="/root/duckdns"
 mkdir -p "$DUCK_DIR"
 
 cat > "$DUCK_DIR/duck.sh" <<'DUCKSCRIPT'
@@ -139,7 +140,7 @@ else
   log "Cron job added ✓"
 fi
 
-# Run the script once now to test
+# Run once now to test
 log "Running duck.sh to test the connection..."
 "$DUCK_DIR/duck.sh"
 
