@@ -41,7 +41,6 @@ services:
     env_file:
       - .env
 
-  # ── NEW: runs once, configures WP, then exits ──────────────────────────────
   wp-cli:
     image: wordpress:cli
     container_name: wp-cli
@@ -53,9 +52,10 @@ services:
     volumes:
       - "wordpress_vol:/var/www/html/"
       - "/opt/app/wp-setup.sh:/usr/local/bin/wp-setup.sh"
+      - "/opt/app/db/backup.sql:/tmp/backup.sql"   # ← seed dump now reachable
     user: "33:33"   # www-data — same user as wordpress:fpm writes files as
     entrypoint: ["bash", "/usr/local/bin/wp-setup.sh"]
-    restart: on-failure   # retries if MySQL isn't ready yet; stops once done
+    restart: on-failure
     env_file:
       - .env
 
