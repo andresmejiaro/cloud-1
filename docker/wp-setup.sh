@@ -3,7 +3,7 @@
 # Imports seed DB, swaps URLs, resets admin credentials from .env.
 set -euo pipefail
 
-SEED_FILE="/docker-entrypoint-initdb/seed.sql"
+SEED_FILE="/tmp/backup.sql"
 FLAG_FILE="/var/www/html/.wp_setup_done"
 
 # ── Already done? ─────────────────────────────────────────────────────────────
@@ -36,13 +36,36 @@ done
 cd /var/www/html
 
 # ── Import seed dump ───────────────────────────────────────────────────────────
-echo "[wp-setup] Importing seed database..."
-wp db import "$SEED_FILE" --allow-root
+if [ -f "$SEED_FILE" ]; then
+  echo "[wp-setup] Importing seed database from $SEED_FILE..."
+  wp db import "$SEED_FILE" --allow-root
+  echo "[wp-setup] Seed import done."
+else
+  echo "[wp-setup] No seed file found at $SEED_FILE — installing fresh WordPress..."
+  wp core install \
+    --url="${WP_URL}" \
+    --title="${WP_TITLE:-My WordPress Site}" \
+    --admin_user="${WP_ADMIN_USER}" \
+    --admin_password="${WP_ADMIN_PASSWORD}" \
+    --admin_email="${WP_ADMIN_EMAIL}" \
+    --skip-email \
+    --allow-root
+fi
 
 # ── Replace placeholder URL with real WP_URL from .env ────────────────────────
 echo "[wp-setup] Replacing URLs → ${WP_URL}"
 wp search-replace '##WP_URL_PLACEHOLDER##' "${WP_URL}" \
   --all-tables --allow-root
+
+# Also fix whatever URL the dump had stored (covers both cases)
+CURRENT_URL=$(wp option get siteurl --allow-root 2>/dev/null || echo "")
+if [ -n "$CURRENT_URL" ] && [ "$CURRENT_URL" != "${WP_URL}" ]; then
+  echo "[wp-setup] Fixing stored URL: $CURRENT_URL → ${WP_URL}"
+  wp search-replace "$CURRENT_URL" "${WP_URL}" --all-tables --allow-root
+fi
+
+wp option update siteurl "${WP_URL}" --allow-root
+wp option update home    "${WP_URL}" --allow-root
 
 # ── Reset admin credentials from .env (never trust dump's credentials) ────────
 echo "[wp-setup] Setting admin credentials..."
@@ -65,4 +88,4 @@ wp cache flush --allow-root
 wp rewrite flush --allow-root
 
 touch "$FLAG_FILE"
-echo "[wp-setup] ✅ Setup complete. Site live at ${WP_URL}"
+echo "[wp-setup] Setup complete. Site live at ${WP_URL}"
