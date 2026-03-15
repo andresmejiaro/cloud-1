@@ -1,6 +1,6 @@
 #!/bin/bash
 # Runs once inside wp-cli container on first boot.
-# Imports seed DB, swaps URLs, resets admin credentials from .env.
+# Creates wp-config.php, imports seed DB, resets admin credentials.
 set -euo pipefail
 
 SEED_FILE="/tmp/backup.sql"
@@ -11,15 +11,6 @@ if [ -f "$FLAG_FILE" ]; then
   echo "[wp-setup] Already configured — skipping."
   exit 0
 fi
-
-# ── Disable SSL verification for WP-CLI → MySQL (MySQL 8 self-signed cert) ───
-# Write a wp-cli.yml that passes --ssl=false to every db command
-mkdir -p /tmp/wpcli-home
-cat > /tmp/wpcli-home/config.yml <<'WPCLI'
-extra-php: |
-  define( 'MYSQL_CLIENT_FLAGS', MYSQLI_CLIENT_SSL_DONT_VERIFY_SERVER_CERT );
-WPCLI
-export WP_CLI_CONFIG_PATH=/tmp/wpcli-home/config.yml
 
 # ── Wait for MySQL ─────────────────────────────────────────────────────────────
 echo "[wp-setup] Waiting for MySQL..."
@@ -43,40 +34,44 @@ until php -r "
 done
 echo "[wp-setup] MySQL is up."
 
-# ── Wait for WordPress files ───────────────────────────────────────────────────
+# ── Wait for WordPress core files ──────────────────────────────────────────────
 until [ -f /var/www/html/wp-includes/version.php ]; do
-  echo "[wp-setup] Waiting for WP files..."
+  echo "[wp-setup] Waiting for WP core files..."
   sleep 3
 done
+echo "[wp-setup] WP core files present."
 
 cd /var/www/html
 
-# ── wp db import bypassing SSL ────────────────────────────────────────────────
-# WP-CLI passes --ssl-mode via the extra-php define above, but the most
-# reliable way for MySQL 8 inside Docker is to pipe directly via the mysql CLI.
-import_db() {
-  # Prefer the mysql binary (present in wordpress:cli image) with --ssl-mode=DISABLED
-  if command -v mysql >/dev/null 2>&1; then
-    echo "[wp-setup] Importing via mysql client (ssl-mode=DISABLED)..."
-    mysql \
-      --host="${WORDPRESS_DB_HOST}" \
-      --user="${WORDPRESS_DB_USER}" \
-      --password="${WORDPRESS_DB_PASSWORD}" \
-      --ssl-mode=DISABLED \
-      "${WORDPRESS_DB_NAME}" < "$SEED_FILE"
-  else
-    echo "[wp-setup] mysql binary not found, falling back to wp db import..."
-    wp db import "$SEED_FILE" --allow-root
-  fi
-}
+# ── Create wp-config.php if it doesn't exist ──────────────────────────────────
+# This is the step that prevents the "installation screen" — without it,
+# WordPress doesn't know the DB credentials and shows the installer.
+if [ ! -f wp-config.php ]; then
+  echo "[wp-setup] Creating wp-config.php..."
+  wp config create \
+    --dbname="${WORDPRESS_DB_NAME}" \
+    --dbuser="${WORDPRESS_DB_USER}" \
+    --dbpass="${WORDPRESS_DB_PASSWORD}" \
+    --dbhost="${WORDPRESS_DB_HOST}" \
+    --skip-check \
+    --allow-root
+  echo "[wp-setup] wp-config.php created."
+else
+  echo "[wp-setup] wp-config.php already exists."
+fi
 
-# ── Import seed dump ───────────────────────────────────────────────────────────
+# ── Import seed dump via mysql binary (bypasses SSL issue) ────────────────────
 if [ -f "$SEED_FILE" ]; then
   echo "[wp-setup] Importing seed database from $SEED_FILE..."
-  import_db
+  mysql \
+    --host="${WORDPRESS_DB_HOST}" \
+    --user="${WORDPRESS_DB_USER}" \
+    --password="${WORDPRESS_DB_PASSWORD}" \
+    --ssl-mode=DISABLED \
+    "${WORDPRESS_DB_NAME}" < "$SEED_FILE"
   echo "[wp-setup] Seed import done."
 else
-  echo "[wp-setup] No seed file found at $SEED_FILE — installing fresh WordPress..."
+  echo "[wp-setup] No seed file found — running fresh install..."
   wp core install \
     --url="${WP_URL}" \
     --title="${WP_TITLE:-My WordPress Site}" \
@@ -87,23 +82,14 @@ else
     --allow-root
 fi
 
-# ── Replace placeholder URL with real WP_URL from .env ────────────────────────
-echo "[wp-setup] Replacing URLs → ${WP_URL}"
-wp search-replace '##WP_URL_PLACEHOLDER##' "${WP_URL}" \
-  --all-tables --allow-root
-
-# Fix whatever URL the dump had stored
-CURRENT_URL=$(wp option get siteurl --allow-root 2>/dev/null || echo "")
-if [ -n "$CURRENT_URL" ] && [ "$CURRENT_URL" != "${WP_URL}" ]; then
-  echo "[wp-setup] Fixing stored URL: $CURRENT_URL → ${WP_URL}"
-  wp search-replace "$CURRENT_URL" "${WP_URL}" --all-tables --allow-root
-fi
-
+# ── Fix URLs in DB (in case dump has old/placeholder URL) ─────────────────────
+echo "[wp-setup] Updating siteurl and home to ${WP_URL}..."
 wp option update siteurl "${WP_URL}" --allow-root
 wp option update home    "${WP_URL}" --allow-root
 
-# ── Reset admin credentials from .env ─────────────────────────────────────────
-echo "[wp-setup] Setting admin credentials..."
+# ── Reset admin credentials ───────────────────────────────────────────────────
+# The dump has user 'hola123' — update it, or create WP_ADMIN_USER if different
+echo "[wp-setup] Resetting admin credentials..."
 wp user update "${WP_ADMIN_USER}" \
   --user_pass="${WP_ADMIN_PASSWORD}" \
   --user_email="${WP_ADMIN_EMAIL}" \
@@ -118,9 +104,9 @@ wp config set WP_DEBUG false --raw --allow-root
 wp config set WP_DEBUG_LOG false --raw --allow-root
 wp config set WP_DEBUG_DISPLAY false --raw --allow-root
 
-# ── Flush & done ──────────────────────────────────────────────────────────────
+# ── Flush ─────────────────────────────────────────────────────────────────────
 wp cache flush --allow-root
 wp rewrite flush --allow-root
 
 touch "$FLAG_FILE"
-echo "[wp-setup] Setup complete. Site live at ${WP_URL}"
+echo "[wp-setup] ✅ Done. Site live at ${WP_URL}"
