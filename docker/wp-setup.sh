@@ -123,4 +123,4 @@ wp cache flush --allow-root
 wp rewrite flush --allow-root
 
 touch "$FLAG_FILE"
-echo "[wp-setup] ✅ Setup complete. Site live at ${WP_URL}"
+echo "[wp-setup] Setup complete. Site live at ${WP_URL}"
